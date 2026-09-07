@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   record: vi.fn<(signal: AbortSignal) => Promise<Recording>>(),
   transcribe: vi.fn(),
   command: vi.fn(),
+  stopSpeech: vi.fn(),
   busy: (_value: boolean) => {},
   configs: new Map([
     [
@@ -62,6 +63,7 @@ vi.mock("./audio", async (original) => ({
       mocks.busy = onBusy;
     }
     stop() {
+      mocks.stopSpeech();
       mocks.busy(false);
     }
     say() {}
@@ -75,6 +77,7 @@ beforeEach(() => {
   vi.useFakeTimers();
   vi.clearAllMocks();
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  vi.stubGlobal("Element", class {});
   const window = Object.assign(new EventTarget(), {
     desktopBridge: { kabanSpeech: {} },
     speechSynthesis: Object.assign(new EventTarget(), { getVoices: () => [] }),
@@ -192,5 +195,110 @@ describe("hands-free conversation", () => {
     expect(renderer!.root.findByProps({ role: "alert" }).children).toContain(
       "Microphone disconnected",
     );
+  });
+});
+
+async function hidePanel(method: "close" | "launcher" | "shortcut") {
+  await act(async () => {
+    if (method === "close")
+      renderer!.root.findByProps({ "aria-label": "Close Kaban panel" }).props.onClick();
+    else if (method === "launcher")
+      renderer!.root.findByProps({ "aria-controls": "kaban-panel" }).props.onClick();
+    else
+      window.dispatchEvent(
+        Object.assign(new Event("keydown", { cancelable: true }), {
+          metaKey: true,
+          shiftKey: true,
+          code: "KeyK",
+          repeat: false,
+        }),
+      );
+  });
+}
+
+describe("background conversation", () => {
+  it.each(["close", "launcher", "shortcut"] as const)(
+    "keeps listening and rearms while hidden via %s",
+    async (method) => {
+      await openPanel();
+      await enable();
+      const signal = mocks.record.mock.calls[0]![0];
+      mocks.stopSpeech.mockClear();
+      await hidePanel(method);
+      expect(renderer!.root.findAllByProps({ id: "kaban-panel" })).toHaveLength(0);
+      expect(signal.aborted).toBe(false);
+      expect(mocks.stopSpeech).not.toHaveBeenCalled();
+      await act(async () => {
+        rejectRecording(new NoSpeechDetected());
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      expect(mocks.record).toHaveBeenCalledTimes(2);
+      await act(async () => {
+        window.dispatchEvent(new Event("t3code:open-kaban"));
+      });
+      expect(conversationToggle().props.checked).toBe(true);
+    },
+  );
+
+  it.each(["close", "launcher", "shortcut"] as const)(
+    "preserves playback and resumes listening after hiding via %s",
+    async (method) => {
+      await openPanel();
+      await act(async () => {
+        mocks.busy(true);
+      });
+      await enable();
+      mocks.stopSpeech.mockClear();
+      await hidePanel(method);
+      expect(mocks.stopSpeech).not.toHaveBeenCalled();
+      expect(mocks.record).not.toHaveBeenCalled();
+      await act(async () => {
+        mocks.busy(false);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(350);
+      });
+      expect(mocks.record).toHaveBeenCalledOnce();
+    },
+  );
+
+  it("closing only settings keeps capture active", async () => {
+    await openPanel();
+    const settings = () => renderer!.root.findByProps({ "aria-label": "Kaban settings" });
+    await act(async () => {
+      settings().props.onClick();
+    });
+    await enable();
+    expect(settings().props.disabled).not.toBe(true);
+    mocks.stopSpeech.mockClear();
+    await act(async () => {
+      settings().props.onClick();
+    });
+    expect(mocks.record.mock.calls[0]![0].aborted).toBe(false);
+    expect(mocks.stopSpeech).not.toHaveBeenCalled();
+    expect(conversationToggle().props.checked).toBe(true);
+  });
+
+  it("the explicit pause control stops voice and capture even while hidden", async () => {
+    await openPanel();
+    await enable();
+    const signal = mocks.record.mock.calls[0]![0];
+    await hidePanel("close");
+    mocks.stopSpeech.mockClear();
+    await act(async () => {
+      renderer!.root.findByProps({ "aria-label": "Pause Kaban voice" }).props.onClick();
+    });
+    expect(signal.aborted).toBe(true);
+    expect(mocks.stopSpeech).toHaveBeenCalledOnce();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1000);
+    });
+    expect(mocks.record).toHaveBeenCalledOnce();
+    await act(async () => {
+      window.dispatchEvent(new Event("t3code:open-kaban"));
+    });
+    expect(conversationToggle().props.checked).toBe(false);
   });
 });

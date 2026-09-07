@@ -87,9 +87,13 @@ recording, it starts listening again without sending anything to Whisper or Code
 The status below the toggle shows whether it is listening, transcribing, or waiting.
 It pauses during
 playback and while the assistant is working or needs approval. There is no wake
-word or voice interruption during playback yet. Collapse the panel to stop
-listening while keeping task notifications active. Close with **×** to pause all
-Kaban voice activity. Microphone, transcription, and submission errors stop conversation mode until you
+word or voice interruption during playback yet. Closing settings, clicking **×**,
+using the Kaban launcher, or pressing `Cmd/Ctrl+Shift+K` only changes panel visibility.
+Conversation, playback, and task notifications continue while the panel is hidden
+and the T3 app is running. The launcher shows the current voice activity.
+Use **Pause** beside the launcher to stop Kaban's microphone, playback, and monitoring;
+running Codex tasks continue. Reopen Kaban and enable **Conversation mode** to resume.
+Disabling **Conversation mode** stops automatic listening; **Quiet** stops playback. Microphone, transcription, and submission errors stop conversation mode until you
 enable it again; silence alone does not.
 
 ## Delegate and follow work
@@ -117,8 +121,8 @@ actions use the provider's existing tools and permissions; browser actions need 
 connected T3 desktop browser host. Kaban does not add general OS mouse control.
 
 Kaban observes server events while active and announces completion, interruption,
-or failure once. Tasks continue on the T3 server when the panel is closed; reopen
-Kaban to resume monitoring. **Forget** only removes a task from the panel; it does
+or failure once, including while its panel is hidden. Tasks continue on the T3
+server if you pause Kaban; reopen Kaban to resume monitoring. **Forget** only removes a task from the panel; it does
 not stop or delete it. **New chat** starts fresh next time you ask and leaves the
 previous conversation in T3. If sending fails during a disconnection, open the
 thread and check whether the request arrived before sending it again.

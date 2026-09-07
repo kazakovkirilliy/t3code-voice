@@ -278,10 +278,6 @@ export default function KabanPanel() {
   );
 
   const togglePanel = useCallback(() => {
-    if (openRef.current) {
-      setContinuous(false);
-      capture.current?.abort();
-    }
     setOpen(!openRef.current);
     setActivated(true);
   }, []);
@@ -582,7 +578,6 @@ export default function KabanPanel() {
     if (
       !readyToSend ||
       !continuous ||
-      !open ||
       !activated ||
       submitting ||
       captureState !== "idle" ||
@@ -595,7 +590,7 @@ export default function KabanPanel() {
       void listenRef.current();
     }, 350);
     return () => clearTimeout(timer);
-  }, [readyToSend, activated, assistantBusy, captureState, continuous, open, speaking, submitting]);
+  }, [readyToSend, activated, assistantBusy, captureState, continuous, speaking, submitting]);
 
   const pause = () => {
     activeRef.current = false;
@@ -625,17 +620,33 @@ export default function KabanPanel() {
             onChange={observe}
           />
         ))}
-      <Button
-        variant="outline"
-        size="sm"
-        className="fixed bottom-4 left-4 z-50 shadow-md"
-        aria-expanded={open}
-        aria-controls="kaban-panel"
-        onClick={togglePanel}
-      >
-        <AudioLinesIcon className="size-4" /> Kaban{" "}
-        {speaking ? "· speaking" : captureState === "recording" ? "· listening" : ""}
-      </Button>
+      <div className="fixed bottom-4 left-4 z-50 flex items-center gap-1">
+        <Button
+          variant="outline"
+          size="sm"
+          className="shadow-md"
+          aria-expanded={open}
+          aria-controls="kaban-panel"
+          onClick={togglePanel}
+        >
+          <AudioLinesIcon className="size-4" /> Kaban{" "}
+          {speaking
+            ? "· speaking"
+            : captureState === "recording"
+              ? "· listening"
+              : continuous
+                ? "· conversation on"
+                : error
+                  ? "· error"
+                  : ""}
+        </Button>
+        {activated && (
+          <Button variant="outline" size="sm" aria-label="Pause Kaban voice" onClick={pause}>
+            <SquareIcon className="size-3" />
+            Pause
+          </Button>
+        )}
+      </div>
       {open && (
         <section
           id="kaban-panel"
@@ -652,7 +663,6 @@ export default function KabanPanel() {
               size="icon"
               variant="ghost"
               aria-label="Kaban settings"
-              disabled={captureState !== "idle" || submitting}
               onClick={() => setShowSettings((value) => !value)}
             >
               <SettingsIcon className="size-4" />
@@ -660,8 +670,8 @@ export default function KabanPanel() {
             <Button
               size="icon"
               variant="ghost"
-              aria-label="Stop voice and close Kaban"
-              onClick={pause}
+              aria-label="Close Kaban panel"
+              onClick={() => setOpen(false)}
             >
               <XIcon className="size-4" />
             </Button>
@@ -885,8 +895,18 @@ export default function KabanPanel() {
                   checked={continuous}
                   disabled={!bridge || !readyToSend}
                   onChange={(event) => {
-                    setContinuous(event.target.checked);
-                    if (!event.target.checked) capture.current?.abort();
+                    const enabled = event.target.checked;
+                    if (enabled && project && provider) {
+                      // Keep background conversation on this workspace when the user navigates.
+                      setSettings((previous) => ({
+                        ...previous,
+                        environmentId: project.environmentId,
+                        projectKey: projectKey(project),
+                        instanceId: provider.instanceId,
+                      }));
+                    }
+                    setContinuous(enabled);
+                    if (!enabled) capture.current?.abort();
                   }}
                 />
                 Conversation mode
