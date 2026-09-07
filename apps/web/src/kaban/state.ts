@@ -14,6 +14,7 @@ export const KabanRecord = Schema.Struct({
 export type KabanRecord = typeof KabanRecord.Type;
 export const KabanRecords = Schema.Array(KabanRecord);
 export const KabanSettings = Schema.Struct({
+  environmentId: Schema.optional(EnvironmentId),
   projectKey: Schema.String,
   instanceId: Schema.String,
   questionModel: Schema.String,

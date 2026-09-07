@@ -23,7 +23,8 @@ mobile app does not yet include the Kaban panel.
 
 Configure and sign in to a [Codex provider](providers-codex.md), add a project, and
 open **Kaban** or run **Open Kaban voice assistant** from the command palette.
-`Cmd/Ctrl+Shift+K` toggles the panel. In Kaban settings, choose your project,
+`Cmd/Ctrl+Shift+K` toggles the panel. Choose an environment first; its Codex accounts are available even before you add a project.
+Use **Add project** in Kaban if no folder is configured. In Kaban settings, choose your project,
 Codex account, answer model, and task model.
 
 Defaults are `gpt-5.6-terra` with low reasoning for answers and `gpt-5.6-sol` with
@@ -124,7 +125,9 @@ computer running Electron, while agent tools operate on the selected remote mach
 ## Troubleshooting
 
 - **No local voice:** install a Russian OS voice, reopen Kaban, or use Piper.
-- **Local speech engine failed:** check the server terminal and the configured
+- **Cannot connect to Whisper/Piper:** T3 does not install or start these servers
+  automatically. Run the corresponding command above on the computer running
+  Electron and keep that terminal open. Check the server terminal and the configured
   port. On macOS, port 5000 can already be occupied; choose another port for Piper.
 - **Microphone denied:** allow T3 Code (or Electron during development) in OS
   microphone permissions, then restart the desktop app.

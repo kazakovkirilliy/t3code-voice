@@ -1,3 +1,4 @@
+import type { EnvironmentId } from "@t3tools/contracts";
 import type { OrchestrationThreadShell, ServerProvider, ModelSelection } from "@t3tools/contracts";
 
 export type KabanMode = "ask" | "delegate" | "followup";
@@ -145,4 +146,19 @@ export class KabanReceipts {
     }
     return true;
   }
+}
+
+/** Account discovery does not require a workspace; explicit environments never silently change. */
+export function resolveKabanEnvironment(input: {
+  projectEnvironmentId?: EnvironmentId | undefined;
+  savedEnvironmentId?: EnvironmentId | undefined;
+  activeEnvironmentId: EnvironmentId | null;
+  availableEnvironmentIds: readonly EnvironmentId[];
+}): EnvironmentId | undefined {
+  return (
+    input.projectEnvironmentId ??
+    input.savedEnvironmentId ??
+    input.activeEnvironmentId ??
+    (input.availableEnvironmentIds.length === 1 ? input.availableEnvironmentIds[0] : undefined)
+  );
 }

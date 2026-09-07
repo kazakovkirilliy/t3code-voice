@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { MessageId, ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, MessageId, ThreadId } from "@t3tools/contracts";
 import type { OrchestrationThread, OrchestrationThreadShell } from "@t3tools/contracts";
 import {
   KABAN_INSTRUCTIONS,
@@ -9,6 +9,7 @@ import {
   kabanModel,
   kabanTaskStatus,
   routeKabanUtterance,
+  resolveKabanEnvironment,
   speechText,
   type KabanMode,
 } from "@t3tools/client-runtime/kaban";
@@ -25,6 +26,7 @@ import {
   XIcon,
 } from "lucide-react";
 import {
+  useActiveEnvironmentId,
   useProjects,
   useServerConfigs,
   useThreadShell,
@@ -33,6 +35,7 @@ import {
 import { useEnvironmentThread, threadEnvironment } from "../state/threads";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useLocalStorage } from "../hooks/useLocalStorage";
+import { openCommandPalette } from "../commandPaletteBus";
 import { Button } from "../components/ui/button";
 import { SpeechQueue, startRecording, transcribe, type Recording } from "./audio";
 import {
@@ -87,6 +90,7 @@ const fieldClass = "w-full rounded-md border border-input bg-background px-2 py-
 export default function KabanPanel() {
   const navigate = useNavigate();
   const projects = useProjects();
+  const activeEnvironmentId = useActiveEnvironmentId();
   const configs = useServerConfigs();
   const [settings, setSettings] = useLocalStorage(
     "t3code:kaban:settings:v1",
@@ -129,15 +133,21 @@ export default function KabanPanel() {
   const interruptTurn = useAtomCommand(threadEnvironment.interruptTurn, { reportFailure: false });
   const projectKey = (project: (typeof projects)[number]) =>
     `${project.environmentId}:${project.id}`;
-  const project =
-    projects.find((item) => projectKey(item) === settings.projectKey) ??
-    (settings.projectKey ? undefined : projects[0]);
+  const savedProject = projects.find((item) => projectKey(item) === settings.projectKey);
+  const environmentId = resolveKabanEnvironment({
+    projectEnvironmentId: savedProject?.environmentId,
+    savedEnvironmentId: settings.environmentId,
+    activeEnvironmentId,
+    availableEnvironmentIds: [...configs.keys()],
+  });
+  const environmentProjects = projects.filter((item) => item.environmentId === environmentId);
+  const project = savedProject ?? (settings.projectKey ? undefined : environmentProjects[0]);
   const projectRefs = useMemo(
     () => (project ? [scopeProjectRef(project.environmentId, project.id)] : []),
     [project],
   );
   const projectThreads = useThreadShellsForProjectRefs(projectRefs);
-  const providers = project ? (configs.get(project.environmentId)?.providers ?? []) : [];
+  const providers = environmentId ? (configs.get(environmentId)?.providers ?? []) : [];
   const codexProviders = providers.filter(
     (item) => item.driver === "codex" && item.enabled && item.installed,
   );
@@ -171,6 +181,7 @@ export default function KabanPanel() {
         (!assistantSnapshot?.shell?.latestTurn ||
           assistantSnapshot.shell.latestTurn.requestedAt < assistant.speakAfter)));
   const bridge = window.desktopBridge?.kabanSpeech;
+  const readyToSend = !!project && !!provider;
 
   const say = useCallback(
     (value: string) => {
@@ -509,6 +520,11 @@ export default function KabanPanel() {
 
   const listen = async () => {
     if (capture.current || !bridge) return;
+    if (!readyToSend) {
+      setError("Choose a project and Codex account before recording.");
+      setContinuous(false);
+      return;
+    }
     const selection = selectionRef.current;
     const capturedMode = mode;
     const controller = new AbortController();
@@ -561,6 +577,7 @@ export default function KabanPanel() {
 
   useEffect(() => {
     if (
+      !readyToSend ||
       !continuous ||
       !open ||
       !activated ||
@@ -577,6 +594,7 @@ export default function KabanPanel() {
     }, 350);
     return () => clearTimeout(timer);
   }, [
+    readyToSend,
     activated,
     assistantBusy,
     captureState,
@@ -658,6 +676,35 @@ export default function KabanPanel() {
           </header>
           <div className="overflow-y-auto p-3 space-y-3">
             <label className="block text-xs text-muted-foreground">
+              Environment
+              <select
+                className={fieldClass}
+                value={environmentId ?? ""}
+                disabled={captureState !== "idle" || submitting}
+                onChange={(event) => {
+                  stopSpeech();
+                  setContinuous(false);
+                  setSelectedTask("");
+                  setSettings((previous) => ({
+                    ...previous,
+                    environmentId: EnvironmentId.make(event.target.value),
+                    projectKey: "",
+                    instanceId: "",
+                  }));
+                }}
+              >
+                {!environmentId && <option value="">Choose an environment</option>}
+                {environmentId && !configs.has(environmentId) && (
+                  <option value={environmentId}>{environmentId} · reconnecting</option>
+                )}
+                {[...configs.keys()].map((id) => (
+                  <option key={id} value={id}>
+                    {configs.get(id)?.environment.label ?? id}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-xs text-muted-foreground">
               Project
               <select
                 className={fieldClass}
@@ -672,14 +719,35 @@ export default function KabanPanel() {
                 }}
               >
                 {!project && <option value="">Choose a project</option>}
-                {projects.map((item) => (
+                {environmentProjects.map((item) => (
                   <option key={projectKey(item)} value={projectKey(item)}>
                     {item.title} · {item.environmentId}
                   </option>
                 ))}
               </select>
             </label>
-            {showSettings && (
+            {!project && (
+              <div className="rounded-md border border-border p-2 text-sm">
+                <p>
+                  {environmentProjects.length
+                    ? "Choose an available project to continue."
+                    : "Add a project folder in T3 to start a conversation or task. Your Codex account can be configured below."}
+                </p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setOpen(false);
+                    setContinuous(false);
+                    capture.current?.abort();
+                    openCommandPalette({ open: "add-project" });
+                  }}
+                >
+                  Add project
+                </Button>
+              </div>
+            )}
+            {(showSettings || !project || !provider) && (
               <fieldset
                 disabled={captureState !== "idle" || submitting}
                 className="space-y-2 rounded-lg border border-border p-3"
@@ -715,7 +783,7 @@ export default function KabanPanel() {
                       >
                         {!provider?.models.some((item) => item.slug === settings[modelKey]) && (
                           <option value={settings[modelKey]}>
-                            {settings[modelKey]} · unavailable
+                            {settings[modelKey]} · {provider ? "unavailable" : "choose account"}
                           </option>
                         )}
                         {provider?.models.map((item) => (
@@ -823,7 +891,7 @@ export default function KabanPanel() {
                 <input
                   type="checkbox"
                   checked={continuous}
-                  disabled={!bridge}
+                  disabled={!bridge || !readyToSend}
                   onChange={(event) => {
                     setContinuous(event.target.checked);
                     if (!event.target.checked) capture.current?.abort();
@@ -877,6 +945,7 @@ export default function KabanPanel() {
                   variant={captureState === "recording" ? "secondary" : "outline"}
                   disabled={
                     !bridge ||
+                    !readyToSend ||
                     submitting ||
                     captureState === "preparing" ||
                     captureState === "transcribing"
@@ -904,7 +973,7 @@ export default function KabanPanel() {
                 <Button
                   type="submit"
                   className="ml-auto"
-                  disabled={submitting || !text.trim() || captureState !== "idle"}
+                  disabled={!readyToSend || submitting || !text.trim() || captureState !== "idle"}
                 >
                   <SendIcon className="size-4" />
                   Send

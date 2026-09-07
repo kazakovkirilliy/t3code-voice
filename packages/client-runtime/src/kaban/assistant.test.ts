@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
+  EnvironmentId,
   ProviderDriverKind,
   ProviderInstanceId,
   TurnId,
@@ -11,6 +12,7 @@ import {
   kabanModel,
   kabanTaskStatus,
   routeKabanUtterance,
+  resolveKabanEnvironment,
   speechText,
 } from "./assistant.ts";
 
@@ -164,5 +166,48 @@ describe("streamed speech", () => {
     const speech = new SpokenSentences();
     speech.take("Ответ один.", true);
     expect(speech.take("Другой ответ.", true)).toEqual([]);
+  });
+});
+
+describe("Kaban environment selection before a project exists", () => {
+  const local = EnvironmentId.make("local");
+  const remote = EnvironmentId.make("remote");
+  it("discovers the single connected account environment without a project", () => {
+    expect(
+      resolveKabanEnvironment({ activeEnvironmentId: null, availableEnvironmentIds: [local] }),
+    ).toBe(local);
+  });
+  it("uses the active environment when multiple environments are connected", () => {
+    expect(
+      resolveKabanEnvironment({
+        activeEnvironmentId: remote,
+        availableEnvironmentIds: [local, remote],
+      }),
+    ).toBe(remote);
+    expect(
+      resolveKabanEnvironment({
+        activeEnvironmentId: null,
+        availableEnvironmentIds: [local, remote],
+      }),
+    ).toBeUndefined();
+  });
+  it("preserves an explicit offline environment instead of borrowing another account", () => {
+    expect(
+      resolveKabanEnvironment({
+        savedEnvironmentId: remote,
+        activeEnvironmentId: local,
+        availableEnvironmentIds: [local],
+      }),
+    ).toBe(remote);
+  });
+  it("keeps existing project settings on their own environment", () => {
+    expect(
+      resolveKabanEnvironment({
+        projectEnvironmentId: remote,
+        savedEnvironmentId: local,
+        activeEnvironmentId: local,
+        availableEnvironmentIds: [local, remote],
+      }),
+    ).toBe(remote);
   });
 });

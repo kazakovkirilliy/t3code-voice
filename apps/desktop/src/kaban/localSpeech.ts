@@ -15,6 +15,8 @@ export function createLocalSpeechTransport(request: typeof fetch = fetch) {
 
   async function run(
     requestId: string,
+    engine: "Whisper" | "Piper",
+    port: number,
     work: (signal: AbortSignal) => Promise<string>,
   ): Promise<KabanSpeechResult> {
     if (pending.has(requestId)) return { ok: false, error: "Speech request already exists." };
@@ -31,8 +33,10 @@ export function createLocalSpeechTransport(request: typeof fetch = fetch) {
       return {
         ok: false,
         error: controller.signal.aborted
-          ? "Speech request cancelled or timed out."
-          : `Local speech engine failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+          ? `${engine} request cancelled or timed out (127.0.0.1:${port}).`
+          : cause instanceof TypeError && cause.message === "fetch failed"
+            ? `Cannot connect to ${engine} at http://127.0.0.1:${port}. Start ${engine === "Whisper" ? "whisper-server" : "the Piper HTTP server"} on this computer and check the port in Kaban settings. T3 does not start speech servers automatically.`
+            : `${engine} at http://127.0.0.1:${port}: ${cause instanceof Error ? cause.message : String(cause)}`,
       };
     } finally {
       clearTimeout(timer);
@@ -62,7 +66,7 @@ export function createLocalSpeechTransport(request: typeof fetch = fetch) {
 
   return {
     transcribe: (input: KabanTranscribeInput) =>
-      run(input.requestId, async (signal) => {
+      run(input.requestId, "Whisper", input.port, async (signal) => {
         const wav = Buffer.from(input.wavBase64, "base64");
         if (
           wav.length < 44 ||
@@ -88,7 +92,7 @@ export function createLocalSpeechTransport(request: typeof fetch = fetch) {
         return result.text.trim();
       }),
     synthesize: (input: KabanSynthesizeInput) =>
-      run(input.requestId, async (signal) => {
+      run(input.requestId, "Piper", input.port, async (signal) => {
         const response = await request(`http://127.0.0.1:${input.port}/synthesize`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -106,3 +106,34 @@ describe("local speech boundary", () => {
     );
   });
 });
+
+describe("speech setup errors", () => {
+  const unavailable: typeof fetch = async () => {
+    throw new TypeError("fetch failed", { cause: new Error("ECONNREFUSED") });
+  };
+  it("identifies the Whisper server and the actual configured port", async () => {
+    const result = await createLocalSpeechTransport(unavailable).transcribe({
+      ...input,
+      port: 8081,
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("Cannot connect to Whisper at http://127.0.0.1:8081"),
+    });
+    expect(result).toMatchObject({ error: expect.stringContaining("whisper-server") });
+  });
+  it("identifies Piper separately, without calling it a Codex failure", async () => {
+    const result = await createLocalSpeechTransport(unavailable).synthesize({
+      requestId: "piper",
+      port: 5001,
+      text: "Привет",
+    });
+    expect(result).toMatchObject({
+      ok: false,
+      error: expect.stringContaining("Cannot connect to Piper at http://127.0.0.1:5001"),
+    });
+    expect(result).toMatchObject({
+      error: expect.stringContaining("does not start speech servers automatically"),
+    });
+  });
+});
