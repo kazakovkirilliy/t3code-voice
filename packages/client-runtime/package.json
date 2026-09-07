@@ -226,6 +226,10 @@
     "./work-log/scroll-anchor": {
       "types": "./src/work-log/scrollAnchor.ts",
       "default": "./src/work-log/scrollAnchor.ts"
+    },
+    "./kaban": {
+      "types": "./src/kaban/assistant.ts",
+      "default": "./src/kaban/assistant.ts"
     }
   },
   "scripts": {

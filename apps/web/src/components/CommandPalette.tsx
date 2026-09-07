@@ -1,5 +1,7 @@
 "use client";
 
+import { openKaban } from "../kaban/state";
+
 import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
   canCreateProjectInEnvironment,
@@ -1689,6 +1691,17 @@ function OpenCommandPaletteDialog(props: {
         themeHalves,
         initialAppearance: resolvedTheme,
       });
+    },
+  });
+
+  actionItems.push({
+    kind: "action",
+    value: "action:kaban",
+    searchTerms: ["kaban", "voice", "assistant", "голос", "кабан"],
+    title: "Open Kaban voice assistant",
+    icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
+    run: async () => {
+      openKaban();
     },
   });
 

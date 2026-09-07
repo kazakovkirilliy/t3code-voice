@@ -31,6 +31,11 @@ function unwrapEnsureSshEnvironmentResult(result: unknown) {
 }
 
 contextBridge.exposeInMainWorld("desktopBridge", {
+  kabanSpeech: {
+    transcribe: (input) => ipcRenderer.invoke(IpcChannels.KABAN_TRANSCRIBE_CHANNEL, input),
+    synthesize: (input) => ipcRenderer.invoke(IpcChannels.KABAN_SYNTHESIZE_CHANNEL, input),
+    cancel: (requestId) => ipcRenderer.invoke(IpcChannels.KABAN_CANCEL_CHANNEL, { requestId }),
+  },
   getAppBranding: () => {
     const result = ipcRenderer.sendSync(IpcChannels.GET_APP_BRANDING_CHANNEL);
     if (typeof result !== "object" || result === null) {

@@ -18,6 +18,10 @@
     "./relay": {
       "types": "./src/relay.ts",
       "import": "./src/relay.ts"
+    },
+    "./kaban": {
+      "types": "./src/kaban.ts",
+      "default": "./src/kaban.ts"
     }
   },
   "scripts": {

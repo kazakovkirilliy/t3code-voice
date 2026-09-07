@@ -1,4 +1,11 @@
-# T3 Code
+# T3 Code Voice
+
+This fork adds **Kaban**, a TypeScript voice assistant inside T3 Code: local Russian
+speech recognition, spoken answers, and separate Codex tasks with progress tracking.
+Start with the [Kaban setup guide](docs/user/kaban.md). Kaban requires this fork's
+build; the upstream installers listed below do not include it.
+
+## T3 Code
 
 T3 Code is an "agent harness control surface". It enables control of the agents on your machine with a best-in-class mobile app ([iOS](https://apps.apple.com/us/app/t3-code-remote-claude-more/id6787819824), [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code)), [web app](https://app.t3.codes) and [Electron-based desktop app](https://t3.codes).
 
