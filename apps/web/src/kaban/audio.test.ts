@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 import type { KabanSpeechBridge, KabanSpeechResult } from "@t3tools/contracts/kaban";
-import { SpeechQueue, encodeWav, startRecording, transcribe } from "./audio";
+import { NoSpeechDetected, SpeechQueue, encodeWav, startRecording, transcribe } from "./audio";
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -49,49 +49,56 @@ describe("voice capture lifecycle", () => {
     await expect(startRecording(new AbortController().signal)).rejects.toThrow("unsupported");
     expect(stop).toHaveBeenCalledOnce();
   });
-  it("aborts active recording and clears its microphone and silence timer", async () => {
-    vi.useFakeTimers();
-    const stopTrack = vi.fn();
-    const close = vi.fn(async () => undefined);
-    vi.stubGlobal("navigator", {
-      mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: stopTrack }] }) },
-    });
-    vi.stubGlobal(
-      "MediaRecorder",
-      class {
-        state = "inactive";
-        onstop: (() => void) | null = null;
-        start() {
-          this.state = "recording";
-        }
-        stop() {
-          this.state = "inactive";
-          this.onstop?.();
-        }
-      },
-    );
-    vi.stubGlobal(
-      "AudioContext",
-      class {
-        close = close;
-        async resume() {}
-        createMediaStreamSource() {
-          return { connect() {}, disconnect() {} };
-        }
-        createAnalyser() {
-          return { fftSize: 1024, getFloatTimeDomainData() {} };
-        }
-      },
-    );
-    const controller = new AbortController();
-    const recording = await startRecording(controller.signal);
-    const rejected = expect(recording.result).rejects.toThrow(/cancelled/);
-    controller.abort();
-    await rejected;
-    expect(stopTrack).toHaveBeenCalledOnce();
-    expect(close).toHaveBeenCalledOnce();
-    expect(vi.getTimerCount()).toBe(0);
-  });
+  it.each(["abort", "silence"] as const)(
+    "releases the microphone and timer after %s",
+    async (reason) => {
+      vi.useFakeTimers();
+      const stopTrack = vi.fn();
+      const close = vi.fn(async () => undefined);
+      vi.stubGlobal("navigator", {
+        mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop: stopTrack }] }) },
+      });
+      vi.stubGlobal(
+        "MediaRecorder",
+        class {
+          state = "inactive";
+          onstop: (() => void) | null = null;
+          start() {
+            this.state = "recording";
+          }
+          stop() {
+            this.state = "inactive";
+            this.onstop?.();
+          }
+        },
+      );
+      vi.stubGlobal(
+        "AudioContext",
+        class {
+          close = close;
+          async resume() {}
+          createMediaStreamSource() {
+            return { connect() {}, disconnect() {} };
+          }
+          createAnalyser() {
+            return { fftSize: 1024, getFloatTimeDomainData() {} };
+          }
+        },
+      );
+      const controller = new AbortController();
+      const recording = await startRecording(controller.signal);
+      const rejected =
+        reason === "silence"
+          ? expect(recording.result).rejects.toBeInstanceOf(NoSpeechDetected)
+          : expect(recording.result).rejects.toThrow(/cancelled/);
+      if (reason === "silence") await vi.advanceTimersByTimeAsync(10_000);
+      else controller.abort();
+      await rejected;
+      expect(stopTrack).toHaveBeenCalledOnce();
+      expect(close).toHaveBeenCalledOnce();
+      expect(vi.getTimerCount()).toBe(0);
+    },
+  );
   it("discards late transcription results and cancels the desktop request", async () => {
     const response = deferred<KabanSpeechResult>();
     const cancel = vi.fn(async () => undefined);

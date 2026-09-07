@@ -37,7 +37,7 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { useLocalStorage } from "../hooks/useLocalStorage";
 import { openCommandPalette } from "../commandPaletteBus";
 import { Button } from "../components/ui/button";
-import { SpeechQueue, startRecording, transcribe, type Recording } from "./audio";
+import { NoSpeechDetected, SpeechQueue, startRecording, transcribe, type Recording } from "./audio";
 import {
   DEFAULT_KABAN_SETTINGS,
   KABAN_OPEN_EVENT,
@@ -549,7 +549,10 @@ export default function KabanPanel() {
         );
       await sendRef.current(transcript, capturedMode);
     } catch (cause) {
-      if (!controller.signal.aborted) {
+      if (!controller.signal.aborted && cause instanceof NoSpeechDetected && continuous) {
+        // Silence is an idle conversation, not a failure. The idle transition rearms capture.
+        setNotice("Жду твою следующую фразу.");
+      } else if (!controller.signal.aborted) {
         setError(cause instanceof Error ? cause.message : String(cause));
         setContinuous(false);
       }
@@ -584,8 +587,7 @@ export default function KabanPanel() {
       submitting ||
       captureState !== "idle" ||
       speaking ||
-      assistantBusy ||
-      showSettings
+      assistantBusy
     )
       return;
     // Let speaker playback and the room's echo settle before opening the microphone again.
@@ -593,17 +595,7 @@ export default function KabanPanel() {
       void listenRef.current();
     }, 350);
     return () => clearTimeout(timer);
-  }, [
-    readyToSend,
-    activated,
-    assistantBusy,
-    captureState,
-    continuous,
-    open,
-    showSettings,
-    speaking,
-    submitting,
-  ]);
+  }, [readyToSend, activated, assistantBusy, captureState, continuous, open, speaking, submitting]);
 
   const pause = () => {
     activeRef.current = false;
@@ -904,6 +896,23 @@ export default function KabanPanel() {
                 Quiet
               </Button>
             </div>
+            {continuous && (
+              <p role="status" className="text-xs text-muted-foreground">
+                {captureState === "recording"
+                  ? "Слушаю — говори без кнопки Speak."
+                  : captureState === "preparing"
+                    ? "Включаю микрофон…"
+                    : captureState === "transcribing"
+                      ? "Распознаю фразу…"
+                      : speaking
+                        ? "Озвучиваю ответ. Затем продолжу слушать."
+                        : !readyToSend
+                          ? "Выбери проект и аккаунт для продолжения."
+                          : assistantBusy || submitting
+                            ? "Жду ответа ассистента. Затем продолжу слушать."
+                            : "Готовлюсь слушать следующую фразу…"}
+              </p>
+            )}
             <div className="flex gap-1" aria-label="Message mode">
               {(
                 [

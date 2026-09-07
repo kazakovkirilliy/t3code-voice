@@ -81,11 +81,16 @@ URLs stay in the written answer. **Quiet** stops current speech; **Speak** also
 interrupts playback before recording. Actual response time depends on your speech
 model, hardware, network, and Codex session startup.
 
-**Conversation mode** reopens the microphone after each answer. It pauses during
+**Conversation mode** reopens the microphone after each answer, including while
+Kaban settings are expanded. Quiet periods do not disable it: after a silent
+recording, it starts listening again without sending anything to Whisper or Codex.
+The status below the toggle shows whether it is listening, transcribing, or waiting.
+It pauses during
 playback and while the assistant is working or needs approval. There is no wake
 word or voice interruption during playback yet. Collapse the panel to stop
 listening while keeping task notifications active. Close with **×** to pause all
-Kaban voice activity. Errors stop conversation mode until you enable it again.
+Kaban voice activity. Microphone, transcription, and submission errors stop conversation mode until you
+enable it again; silence alone does not.
 
 ## Delegate and follow work
 

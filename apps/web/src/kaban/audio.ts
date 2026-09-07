@@ -39,7 +39,14 @@ export interface Recording {
   cancel(): void;
 }
 
-/** Capture starts only on a user gesture; the track is released on every exit. */
+export class NoSpeechDetected extends Error {
+  constructor() {
+    super("No speech heard. Try speaking closer to the microphone.");
+    this.name = "NoSpeechDetected";
+  }
+}
+
+/** Capture requires user opt-in; the track is released on every exit. */
 export async function startRecording(signal: AbortSignal, silenceMs = 700): Promise<Recording> {
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
@@ -115,7 +122,7 @@ export async function startRecording(signal: AbortSignal, silenceMs = 700): Prom
         return;
       }
       if (voicedMs < 180) {
-        reject(new Error("No speech heard. Try speaking closer to the microphone."));
+        reject(new NoSpeechDetected());
         return;
       }
       void (async () => {
